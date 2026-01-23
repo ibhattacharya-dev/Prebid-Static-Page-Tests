@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Mediafuse adapter test (PB9 / PB10)</title>
+
+  
+  <script>
+    (function () {
+      const params = new URLSearchParams(window.location.search);
+      const pb = params.get('pb') === '9' ? '9' : '10';
+
+      const script = document.createElement('script');
+      script.src = pb === '9' ? './prebid9.js' : './prebid10.js';
+      script.async = false;
+
+      document.head.appendChild(script);
+
+      console.log('[TEST] Loading Prebid version:', pb);
+    })();
+  </script>
+</head>
+
+<body>
+  <h1>MediaFuse Prebid Adapter Test</h1>
+  <p id="pb-version">Loading Prebid…</p>
+
+  <div
+    id="ad-slot"
+    style="width:300px;height:250px;border:1px solid #ccc;"
+  ></div>
+
+  <script>
+    window.pbjs = window.pbjs || {};
+    pbjs.que = pbjs.que || [];
+
+    pbjs.que.push(function () {
+      // Confirm version
+      document.getElementById('pb-version').innerText =
+        'Running Prebid v' + pbjs.version;
+
+      console.log('[TEST] Prebid version:', pbjs.version);
+
+      const adUnits = [{
+        code: 'ad-slot',
+        mediaTypes: {
+          banner: {
+            sizes: [[300, 250]]
+          }
+        },
+        bids: [{
+          bidder: 'mediafuse',
+          params: {
+            placementId: 13232354
+          }
+        }]
+      }];
+
+      // Universal config 
+      pbjs.setConfig({
+        debug: true
+      });
+
+      // 10only config 
+      if (pbjs.version && pbjs.version.startsWith('10')) {
+        pbjs.setConfig({
+          bidderSettings: {
+            mediafuse: {
+              enabled: true,
+              storageAllowed: true,
+              allowActivities: {
+                fetch: true,
+                iframe: true,
+                image: true,
+                transmitTid: true,
+                accessDevice: true
+              }
+            }
+          }
+        });
+      }
+
+      pbjs.addAdUnits(adUnits);
+
+      pbjs.requestBids({
+        timeout: 3000,
+        bidsBackHandler: function () {
+          const responses = pbjs.getBidResponses();
+          console.log('[TEST] Bid responses:', responses);
+
+          const allBids = Object.values(responses)
+            .flatMap(r => r.bids);
+
+          console.log('[TEST] All bids:', allBids);
+
+          if (allBids.length) {
+            pbjs.renderAd(
+              document.getElementById('ad-slot'),
+              allBids[0].adId
+            );
+          } else {
+            console.warn('[TEST] No bids returned');
+          }
+        }
+      });
+    });
+  </script>
+</body>
+</html>
