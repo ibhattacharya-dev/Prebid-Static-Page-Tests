@@ -1,73 +1,146 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
-  <title>Mediafuse adapter test (PB9 / PB10)</title>
+  <meta charset="UTF-8" />
+  <title>Mediafuse Prebid Adapter Test (PB9 / PB10)</title>
 
-  
+  <!-- Optional GPT (banner rendering only) -->
+  <script async src="https://securepubads.g.doubleclick.net/tag/js/gpt.js"></script>
+
+  <!-- Local Prebid build -->
+  <script src="./prebid.js"></script>
+
   <script>
-    (function () {
-      const params = new URLSearchParams(window.location.search);
-      const pb = params.get('pb') === '9' ? '9' : '10';
-
-      const script = document.createElement('script');
-      script.src = pb === '9' ? './prebid9.js' : './prebid10.js';
-      script.async = false;
-
-      document.head.appendChild(script);
-
-      console.log('[TEST] Loading Prebid version:', pb);
-    })();
+    var googletag = googletag || {};
+    googletag.cmd = googletag.cmd || [];
   </script>
+
+  <style>
+    .slot {
+      border: 1px dashed #999;
+      margin: 16px 0;
+      padding: 8px;
+    }
+  </style>
 </head>
 
 <body>
-  <h1>MediaFuse Prebid Adapter Test</h1>
-  <p id="pb-version">Loading Prebid…</p>
+  <h2>Mediafuse Adapter Test</h2>
 
-  <div
-    id="ad-slot"
-    style="width:300px;height:250px;border:1px solid #ccc;"
-  ></div>
+  <div id="banner1" class="slot" style="width:300px;height:250px">
+    Primary Banner (37151836)
+  </div>
+
+  <div id="banner2" class="slot" style="width:300px;height:250px">
+    Live Banner (37151837)
+  </div>
+
+  <div id="native" class="slot">
+    Native (37151838 – console only)
+  </div>
+
+  <div id="outstream" class="slot" style="width:300px;height:250px">
+    Outstream Video (37151840)
+  </div>
+
+  <div id="instream" class="slot">
+    Instream / AdPod (37151839 / 37151841 – console only)
+  </div>
 
   <script>
-    window.pbjs = window.pbjs || {};
-    pbjs.que = pbjs.que || [];
-
-    pbjs.que.push(function () {
-      // Confirm version
-      document.getElementById('pb-version').innerText =
-        'Running Prebid v' + pbjs.version;
-
-      console.log('[TEST] Prebid version:', pbjs.version);
-
-      const adUnits = [{
-        code: 'ad-slot',
+    var adUnits = [
+      // Primary banner
+      {
+        code: 'banner1',
         mediaTypes: {
-          banner: {
-            sizes: [[300, 250]]
+          banner: { sizes: [[300, 250]] }
+        },
+        bids: [{
+          bidder: 'mediafuse',
+          params: { placement_id: 37151836 }
+        }]
+      },
+
+      // Live banner example
+      {
+        code: 'banner2',
+        mediaTypes: {
+          banner: { sizes: [[300, 250]] }
+        },
+        bids: [{
+          bidder: 'mediafuse',
+          params: { placement_id: 37151837 }
+        }]
+      },
+
+      // Native
+      {
+        code: 'native',
+        mediaTypes: {
+          native: {
+            title: { required: true },
+            image: { required: true },
+            body: { required: true },
+            clickUrl: { required: true }
           }
         },
         bids: [{
           bidder: 'mediafuse',
-          params: {
-            placementId: 13232354
-          }
+          params: { placement_id: 37151838 }
         }]
-      }];
+      },
 
-      // Universal config 
+      // Outstream video
+      {
+        code: 'outstream',
+        mediaTypes: {
+          video: {
+            context: 'outstream',
+            playerSize: [300, 250]
+          }
+        },
+        bids: [{
+          bidder: 'mediafuse',
+          params: { placement_id: 37151840 }
+        }]
+      },
+
+      // Instream / AdPod
+      {
+        code: 'instream',
+        mediaTypes: {
+          video: {
+            context: 'instream',
+            playerSize: [640, 360],
+            adPodDurationSec: 90,          // 3 ads * 30s
+            durationRangeSec: [15, 30],
+            requireExactDuration: false
+          }
+        },
+        bids: [{
+          bidder: 'mediafuse',
+          params: { placement_id: 37151841 }
+        }]
+      }
+    ];
+
+    pbjs.que.push(function () {
+      // Works in PB9 and PB10
       pbjs.setConfig({
-        debug: true
+        debug: true,
+        bidderSettings: {
+          mediafuse: {
+            enabled: true,
+            storageAllowed: true
+          }
+        }
       });
 
-      // 10only config 
-      if (pbjs.version && pbjs.version.startsWith('10')) {
+      // PB10-only activity controls (safe in PB9)
+      if (pbjs.setConfig) {
         pbjs.setConfig({
           bidderSettings: {
             mediafuse: {
-              enabled: true,
-              storageAllowed: true,
               allowActivities: {
                 fetch: true,
                 iframe: true,
@@ -82,24 +155,30 @@
 
       pbjs.addAdUnits(adUnits);
 
+      // Debug hooks (critical for low-fill testing)
+      pbjs.onEvent('bidRequested', d => {
+        console.log('Bid requested:', d);
+      });
+
+      pbjs.onEvent('bidResponse', b => {
+        console.log('Bid response:', b);
+      });
+
       pbjs.requestBids({
         timeout: 3000,
         bidsBackHandler: function () {
-          const responses = pbjs.getBidResponses();
-          console.log('[TEST] Bid responses:', responses);
+          // PB9 + PB10 safe way to inspect bids
+          var responses = pbjs.getBidResponses();
+          var allBids = Object.values(responses).flatMap(r => r.bids);
+          console.log('All bids:', allBids);
 
-          const allBids = Object.values(responses)
-            .flatMap(r => r.bids);
-
-          console.log('[TEST] All bids:', allBids);
-
-          if (allBids.length) {
-            pbjs.renderAd(
-              document.getElementById('ad-slot'),
-              allBids[0].adId
-            );
-          } else {
-            console.warn('[TEST] No bids returned');
+          // Banner render (if any bids exist)
+          if (pbjs.setTargetingForGPTAsync) {
+            pbjs.setTargetingForGPTAsync();
+            googletag.cmd.push(function () {
+              googletag.display('banner1');
+              googletag.display('banner2');
+            });
           }
         }
       });
